@@ -65,11 +65,11 @@ php artisan key:generate
 Edite o arquivo `.env` com suas credenciais:
 ```env
 DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
+DB_HOST=mysql
 DB_PORT=3306
 DB_DATABASE=agendamento_db
-DB_USERNAME=seu_usuario
-DB_PASSWORD=sua_senha
+DB_USERNAME=agendamento_user
+DB_PASSWORD=senha123
 ```
 
 5. **Execute as migrations e seeders**
