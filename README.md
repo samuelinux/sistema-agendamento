@@ -177,6 +177,13 @@ chown -R www-data:www-data /var/www/sistema_de_agendamento/storage /var/www/sist
 
 ```
 
+### Descartar mudanças locais
+```bash
+git fetch --all && git reset --hard origin/$(git rev-parse --abbrev-ref HEAD) && git clean -fd && git pull
+
+```
+
+
 ## 📞 Suporte
 
 Para suporte técnico ou dúvidas sobre o sistema, consulte a documentação ou entre em contato com o desenvolvedor.
