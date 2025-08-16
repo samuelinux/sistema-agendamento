@@ -173,7 +173,8 @@ O sistema é totalmente responsivo e funciona em:
 
 ### Problemas de Permissão
 ```bash
-chmod -R 755 storage bootstrap/cache
+chown -R www-data:www-data /var/www/sistema_de_agendamento/storage /var/www/sistema_de_agendamento/bootstrap/cache && chmod -R 775 /var/www/sistema_de_agendamento/storage /var/www/sistema_de_agendamento/bootstrap/cache
+
 ```
 
 ## 📞 Suporte
