@@ -22,7 +22,7 @@ use App\Http\Controllers\Api\AgendamentoController;
 | Página de agendamento agora é um componente Livewire full-page.
 | Clientes acessam sem login.
 */
-Route::get('/', AgendamentoPage::class)->name('agendamento.index');
+Route::get('/', AgendamentoPage::class)->name('agendamento1');
 
 /*
 |--------------------------------------------------------------------------

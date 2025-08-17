@@ -7,7 +7,9 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Servico;
+use Carbon\Carbon;
 use App\Models\Agendamento;
 use App\Services\DisponibilidadeService;
 
@@ -59,8 +61,10 @@ class AgendamentoPage extends Component
     /* Modais */
     public function openServiceModal(): void { $this->showServiceModal = true; }
     public function closeServiceModal(): void { $this->showServiceModal = false; }
+
     public function openDateModal(): void { $this->showDateModal = true; }
     public function closeDateModal(): void { $this->showDateModal = false; }
+
     public function openTimeModal(): void { $this->showTimeModal = true; }
     public function closeTimeModal(): void { $this->showTimeModal = false; }
 
@@ -113,57 +117,77 @@ class AgendamentoPage extends Component
     }
 
     public function confirmarAgendamento(): void
-    {
-        if (!$this->selectedServiceId || !$this->selectedDate || !$this->selectedTime) {
-            session()->flash('error', 'Por favor, selecione serviço, data e horário.');
-            return;
+{
+    if (!$this->selectedServiceId || !$this->selectedDate || !$this->selectedTime) {
+        session()->flash('error', 'Por favor, selecione serviço, data e horário.');
+        return;
+    }
+
+    // Verificação prévia (fora da transação só pra UX)
+    if (!$this->disponibilidade()->temDisponibilidade($this->selectedServiceId, $this->selectedDate, $this->selectedTime)) {
+        session()->flash('error', 'O horário escolhido não está mais disponível.');
+        $this->horariosDisponiveis = $this->disponibilidade()->horariosDisponiveis($this->selectedServiceId, $this->selectedDate);
+        $this->openTimeModal();
+        return;
+    }
+
+    try {
+        DB::transaction(function () {
+            // Revalida dentro da transação (anti-corrida)
+            if (!$this->disponibilidade()->temDisponibilidade($this->selectedServiceId, $this->selectedDate, $this->selectedTime)) {
+                throw new \RuntimeException('sem_disponibilidade');
+            }
+
+            // >>> calcule hora_fim e passe CARBON para os casts 'datetime:H:i'
+            $servico = Servico::findOrFail($this->selectedServiceId);
+            $duracao = (int) $servico->duracao_minutos;
+
+            $tz  = config('app.timezone', 'America/Sao_Paulo');
+            $ini = Carbon::parse($this->selectedDate.' '.$this->selectedTime, $tz)->seconds(0);
+            $fim = $ini->copy()->addMinutes($duracao);
+
+            Agendamento::create([
+                'user_id'          => Auth::id(), 
+                'servico_id'       => $this->selectedServiceId,
+                'data_agendamento' => Carbon::parse($this->selectedDate, $tz), // cast 'date'
+                'hora_inicio'      => $ini,  // cast 'datetime:H:i'
+                'hora_fim'         => $fim,  // cast 'datetime:H:i'
+                // 'status'        => 'confirmado',   // opcional
+                // 'user_id'       => auth()->id(),  // se tiver login
+            ]);
+        });
+
+        session()->flash('success', 'Agendamento confirmado com sucesso!');
+
+        // Reset de UI
+        $this->step = 0;
+        $this->selectedServiceId = null;
+        $this->selectedDate = null;
+        $this->selectedTime = null;
+        $this->horariosDisponiveis = [];
+        $this->diasComSlots = [];
+        $this->carregarServicos();
+
+    } catch (\Throwable $e) {
+        // Log mais verboso pra diagnosticar rápido
+        Log::error('Erro ao confirmar agendamento', [
+            'msg'   => $e->getMessage(),
+            'code'  => $e->getCode(),
+            'file'  => $e->getFile(),
+            'line'  => $e->getLine(),
+        ]);
+
+        if ($e instanceof \RuntimeException && $e->getMessage() === 'sem_disponibilidade') {
+            session()->flash('error', 'O horário acabou de ser ocupado. Escolha outro.');
+        } else {
+            session()->flash('error', 'Não foi possível confirmar o agendamento: '.$e->getMessage());
+            dd($e);
         }
 
-        // Verificação prévia
-        if (!$this->disponibilidade()->temDisponibilidade($this->selectedServiceId, $this->selectedDate, $this->selectedTime)) {
-            session()->flash('error', 'O horário escolhido não está mais disponível.');
+        if ($this->selectedServiceId && $this->selectedDate) {
             $this->horariosDisponiveis = $this->disponibilidade()->horariosDisponiveis($this->selectedServiceId, $this->selectedDate);
             $this->openTimeModal();
-            return;
-        }
-
-        try {
-            DB::transaction(function () {
-                // Revalida dentro da transação (anti-corrida)
-                if (!$this->disponibilidade()->temDisponibilidade($this->selectedServiceId, $this->selectedDate, $this->selectedTime)) {
-                    throw new \RuntimeException('sem_disponibilidade');
-                }
-
-                Agendamento::create([
-                    'servico_id'       => $this->selectedServiceId,
-                    'data_agendamento' => $this->selectedDate,
-                    'hora_inicio'      => $this->selectedTime,
-                ]);
-            });
-
-            session()->flash('success', 'Agendamento confirmado com sucesso!');
-
-            // Reset padrão
-            $this->step = 0;
-            $this->selectedServiceId = null;
-            $this->selectedDate = null;
-            $this->selectedTime = null;
-            $this->horariosDisponiveis = [];
-            $this->diasComSlots = [];
-
-            $this->carregarServicos();
-        } catch (\Throwable $e) {
-            if ($e instanceof \RuntimeException && $e->getMessage() === 'sem_disponibilidade') {
-                session()->flash('error', 'O horário acabou de ser ocupado. Escolha outro.');
-            } else {
-                Log::error('Erro ao confirmar agendamento', ['exception' => $e]);
-                session()->flash('error', 'Não foi possível confirmar o agendamento.');
-            }
-
-            if ($this->selectedServiceId && $this->selectedDate) {
-                $this->horariosDisponiveis = $this->disponibilidade()->horariosDisponiveis($this->selectedServiceId, $this->selectedDate);
-                $this->openTimeModal();
-            }
         }
     }
+}
 }
