@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use Livewire\Component;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Illuminate\Support\Facades\DB;
@@ -118,6 +119,11 @@ class AgendamentoPage extends Component
 
     public function confirmarAgendamento(): void
 {
+    if (!Auth::check()) {
+        $this->dispatch('open-login');
+        return;
+    }
+
     if (!$this->selectedServiceId || !$this->selectedDate || !$this->selectedTime) {
         session()->flash('error', 'Por favor, selecione serviço, data e horário.');
         return;

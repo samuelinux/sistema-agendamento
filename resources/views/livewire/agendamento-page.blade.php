@@ -232,4 +232,7 @@
   </div>
 @endif
 
+
+<livewire:login-modal />
+
 </div>
